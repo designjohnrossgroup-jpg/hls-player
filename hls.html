@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>HLS Player</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <style>
+    body, html { margin: 0; padding: 0; background: black; height: 100%; }
+    video { width: 100%; height: 100%; object-fit: cover; }
+  </style>
+</head>
+<body>
+  <video id="video" autoplay muted loop playsinline></video>
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const src = urlParams.get("src");
+    const video = document.getElementById('video');
+    video.muted = true; // immer muted starten
+
+    if (Hls.isSupported()) {
+      const hls = new Hls();
+      hls.loadSource(src);
+      hls.attachMedia(video);
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = src;
+    }
+
+    // Tap = Play/Pause Toggle
+    video.addEventListener("click", () => {
+      if (video.paused) video.play(); else video.pause();
+    });
+  </script>
+</body>
+</html>
