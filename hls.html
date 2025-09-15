@@ -18,7 +18,7 @@
       width: 100%;
       height: 100%;
       object-fit: cover; /* Insta-/TikTok-Style */
-      pointer-events: none; /* Blockiert keine Swipes */
+      pointer-events: none; /* blockiert keine Swipes */
       display: block;
     }
   </style>
@@ -46,13 +46,21 @@
       video.src = src;
     }
 
-    // Performance: Nur abspielen, wenn sichtbar
+    // 🔥 Steuerung via postMessage von FlutterFlow
+    window.addEventListener("message", (event) => {
+      const msg = event.data;
+      if (msg === "play") video.play().catch(() => {});
+      if (msg === "pause") video.pause();
+      if (msg === "mute") video.muted = true;
+      if (msg === "unmute") video.muted = false;
+    });
+
+    // Optional: Falls du willst, dass Videos automatisch pausieren,
+    // wenn sie nicht sichtbar sind
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            video.play().catch(() => {});
-          } else {
+          if (!entry.isIntersecting) {
             video.pause();
           }
         });
