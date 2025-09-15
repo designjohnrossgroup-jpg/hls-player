@@ -5,42 +5,105 @@
   <title>HLS Player</title>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <style>
-  html, body {
-    margin: 0;
-    padding: 0;
-    width: 100%;
-    height: 100%;
-    background: black;
-    overflow: hidden; /* verhindert Scrollbars */
-  }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: black;
+      overflow: hidden; /* keine Scrollbars */
+    }
 
-  video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover; /* füllt Container, beschneidet Überstand */
-  }
-</style>
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover; /* Insta-/TikTok-Style */
+      pointer-events: none; /* wichtig: PageView/Scroll wird nicht blockiert */
+    }
 
+    .overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+    }
+  </style>
 </head>
 <body>
-  <video id="video" autoplay muted loop playsinline></video>
+  <div style="position: relative; width: 100%; height: 100%;">
+    <video id="video" autoplay muted loop playsinline></video>
+    <div id="overlay" class="overlay"></div>
+  </div>
+
   <script>
     const urlParams = new URLSearchParams(window.location.search);
     const src = urlParams.get("src");
-    const video = document.getElementById('video');
-    video.muted = true; // immer muted starten
+    const video = document.getElementById("video");
+    const overlay = document.getElementById("overlay");
 
+    // Start immer muted
+    video.muted = true;
+
+    // HLS.js Setup
     if (Hls.isSupported()) {
-      const hls = new Hls();
+      const hls = new Hls({
+        maxBufferLength: 10, // weniger Buffer = weniger RAM
+        maxMaxBufferLength: 30,
+      });
       hls.loadSource(src);
       hls.attachMedia(video);
-    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = src;
     }
 
-    // Tap = Play/Pause Toggle
-    video.addEventListener("click", () => {
-      if (video.paused) video.play(); else video.pause();
+    // Performance: Video nur spielen, wenn sichtbar
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            video.play().catch(() => {});
+          } else {
+            video.pause();
+          }
+        });
+      },
+      { threshold: 0.8 } // mindestens 80% sichtbar
+    );
+    observer.observe(video);
+
+    // --- Controls über Overlay ---
+    let lastTap = 0;
+    overlay.addEventListener("click", () => {
+      const now = Date.now();
+      if (now - lastTap < 300) {
+        // Doppel-Tap → Play/Pause
+        if (video.paused) video.play();
+        else video.pause();
+      } else {
+        // Single Tap → Mute/Unmute
+        video.muted = !video.muted;
+      }
+      lastTap = now;
+    });
+
+    // LongPress = Pause während gedrückt
+    let holdTimeout;
+    overlay.addEventListener("mousedown", () => {
+      holdTimeout = setTimeout(() => video.pause(), 200);
+    });
+    overlay.addEventListener("mouseup", () => {
+      clearTimeout(holdTimeout);
+      video.play();
+    });
+
+    overlay.addEventListener("touchstart", () => {
+      holdTimeout = setTimeout(() => video.pause(), 200);
+    });
+    overlay.addEventListener("touchend", () => {
+      clearTimeout(holdTimeout);
+      video.play();
     });
   </script>
 </body>
