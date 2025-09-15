@@ -11,37 +11,25 @@
       width: 100%;
       height: 100%;
       background: black;
-      overflow: hidden; /* keine Scrollbars */
+      overflow: hidden;
     }
 
     video {
       width: 100%;
       height: 100%;
       object-fit: cover; /* Insta-/TikTok-Style */
-      pointer-events: none; /* wichtig: PageView/Scroll wird nicht blockiert */
-    }
-
-    .overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      z-index: 2;
+      pointer-events: none; /* Blockiert keine Swipes */
+      display: block;
     }
   </style>
 </head>
 <body>
-  <div style="position: relative; width: 100%; height: 100%;">
-    <video id="video" autoplay muted loop playsinline></video>
-    <div id="overlay" class="overlay"></div>
-  </div>
+  <video id="video" autoplay muted loop playsinline></video>
 
   <script>
     const urlParams = new URLSearchParams(window.location.search);
     const src = urlParams.get("src");
     const video = document.getElementById("video");
-    const overlay = document.getElementById("overlay");
 
     // Start immer muted
     video.muted = true;
@@ -49,7 +37,7 @@
     // HLS.js Setup
     if (Hls.isSupported()) {
       const hls = new Hls({
-        maxBufferLength: 10, // weniger Buffer = weniger RAM
+        maxBufferLength: 10,
         maxMaxBufferLength: 30,
       });
       hls.loadSource(src);
@@ -58,7 +46,7 @@
       video.src = src;
     }
 
-    // Performance: Video nur spielen, wenn sichtbar
+    // Performance: Nur abspielen, wenn sichtbar
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -69,42 +57,9 @@
           }
         });
       },
-      { threshold: 0.8 } // mindestens 80% sichtbar
+      { threshold: 0.8 }
     );
     observer.observe(video);
-
-    // --- Controls über Overlay ---
-    let lastTap = 0;
-    overlay.addEventListener("click", () => {
-      const now = Date.now();
-      if (now - lastTap < 300) {
-        // Doppel-Tap → Play/Pause
-        if (video.paused) video.play();
-        else video.pause();
-      } else {
-        // Single Tap → Mute/Unmute
-        video.muted = !video.muted;
-      }
-      lastTap = now;
-    });
-
-    // LongPress = Pause während gedrückt
-    let holdTimeout;
-    overlay.addEventListener("mousedown", () => {
-      holdTimeout = setTimeout(() => video.pause(), 200);
-    });
-    overlay.addEventListener("mouseup", () => {
-      clearTimeout(holdTimeout);
-      video.play();
-    });
-
-    overlay.addEventListener("touchstart", () => {
-      holdTimeout = setTimeout(() => video.pause(), 200);
-    });
-    overlay.addEventListener("touchend", () => {
-      clearTimeout(holdTimeout);
-      video.play();
-    });
   </script>
 </body>
 </html>
