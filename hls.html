@@ -31,43 +31,36 @@
     const src = urlParams.get("src");
     const video = document.getElementById("video");
 
-    // Start immer muted
+    // Standard: startet immer muted
     video.muted = true;
 
     // HLS.js Setup
     if (Hls.isSupported()) {
-      const hls = new Hls({
-        maxBufferLength: 10,
-        maxMaxBufferLength: 30,
-      });
+      const hls = new Hls();
       hls.loadSource(src);
       hls.attachMedia(video);
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = src;
     }
 
-    // 🔥 Steuerung via postMessage von FlutterFlow
+    // 🔥 Steuerung via postMessage aus FlutterFlow
     window.addEventListener("message", (event) => {
       const msg = event.data;
-      if (msg === "play") video.play().catch(() => {});
-      if (msg === "pause") video.pause();
-      if (msg === "mute") video.muted = true;
-      if (msg === "unmute") video.muted = false;
-    });
+      console.log("📩 postMessage:", msg);
 
-    // Optional: Falls du willst, dass Videos automatisch pausieren,
-    // wenn sie nicht sichtbar sind
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (!entry.isIntersecting) {
-            video.pause();
-          }
-        });
-      },
-      { threshold: 0.8 }
-    );
-    observer.observe(video);
+      if (msg === "play") {
+        video.play().catch((err) => console.warn("Play blocked:", err));
+      }
+      if (msg === "pause") {
+        video.pause();
+      }
+      if (msg === "mute") {
+        video.muted = true;
+      }
+      if (msg === "unmute") {
+        video.muted = false;
+      }
+    });
   </script>
 </body>
 </html>
