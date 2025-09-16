@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <title>HLS Player</title>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     html, body {
       margin: 0;
@@ -12,6 +13,9 @@
       height: 100%;
       background: black;
       overflow: hidden;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
     }
 
     video {
@@ -27,7 +31,7 @@
       position: fixed;
       inset: 0;
       z-index: 10;
-      touch-action: pan-y; /* wichtig: vertikales Scrollen geht an das umgebende PageView */
+      touch-action: pan-y; /* entscheidend: vertikale Swipes gehen ans PageView */
       background: transparent;
       display: flex;
       align-items: center;
@@ -48,8 +52,6 @@
       display: inline-flex;
       align-items: center;
       gap: 10px;
-      user-select: none;
-      -webkit-user-select: none;
       will-change: opacity, transform;
     }
     .indicator.show { opacity: 1; transform: scale(1); }
@@ -134,31 +136,57 @@
       const dy = Math.abs(ev.clientY - startY);
       const dt = performance.now() - startT;
 
-      // Wenn deutliche Bewegung oder lange Dauer -> als Scroll/Swipe behandeln
+      // Deutliche Bewegung/Lange Dauer -> Swipe/Scroll an Parent übergeben
       if (dx > TAP_MAX_MOVEMENT || dy > TAP_MAX_MOVEMENT || dt > TAP_MAX_DURATION) return;
 
-      // Echte User-Geste: Unmute sicher erzwingen (iOS)
       try {
-        video.removeAttribute('muted');
-        video.defaultMuted = false;
-        video.volume = 1.0;
-        video.muted = !video.muted;
-
-        // Bei Unmute sicherstellen, dass es läuft
-        if (!video.muted) {
+        // Unmute/Mute Toggle innerhalb echter User-Geste
+        if (video.muted || video.volume === 0) {
+          video.removeAttribute('muted');
+          video.defaultMuted = false;
+          video.volume = 1.0;
+          video.muted = false;
           await video.play();
+          showIndicator(false);
+        } else {
+          video.muted = true;
+          video.defaultMuted = true;
+          showIndicator(true);
         }
-
-        showIndicator(video.muted);
       } catch (e) {
-        // Falls play() scheitert, state wieder zurück
+        // Falls play() fehlschlägt, wieder auf muted
         video.muted = true;
         video.defaultMuted = true;
         showIndicator(true);
       }
     }, { passive: true });
 
-    // Optional: Startzustand anzeigen
+    // Optional: PostMessage-Steuerung (z.B. von Flutter)
+    // - "mute" wirkt immer
+    // - "unmute" klappt zuverlässig, NACHDEM der Nutzer mindestens einmal getappt hat (Audio entsperrt)
+    window.addEventListener('message', async (event) => {
+      // Bei Bedarf: Origin prüfen, z.B. if (event.origin !== 'https://deine-domain') return;
+      const data = String(event.data || '').toLowerCase().trim();
+      if (data === 'mute') {
+        video.muted = true;
+        video.defaultMuted = true;
+        showIndicator(true);
+      } else if (data === 'unmute') {
+        try {
+          video.removeAttribute('muted');
+          video.defaultMuted = false;
+          video.volume = 1.0;
+          video.muted = false;
+          await video.play();
+          showIndicator(false);
+        } catch (e) {
+          // Wenn blockiert: Hinweis kurz zeigen (Tippen nötig)
+          showIndicator(true);
+        }
+      }
+    });
+
+    // Startzustand anzeigen
     document.addEventListener('DOMContentLoaded', () => showIndicator(true));
   </script>
 </body>
