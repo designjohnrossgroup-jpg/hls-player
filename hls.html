@@ -13,51 +13,94 @@
       background: black;
       overflow: hidden;
     }
+
     video {
       width: 100%;
       height: 100%;
-      object-fit: cover; /* TikTok/Insta Style */
-      pointer-events: none; /* ✅ Swipen bleibt möglich */
+      object-fit: cover; /* Insta-/TikTok-Style */
+      pointer-events: none; /* Blockiert keine Swipes */
+      display: block;
     }
-    #overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: transparent; /* unsichtbar */
+
+    /* Vollflächige Tap-Schicht über dem Video */
+    .tap-layer {
+      position: fixed;
+      inset: 0;
       z-index: 10;
-      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: manipulation;
+    }
+
+    /* Hinweis-Badge (Icon) */
+    .indicator {
+      pointer-events: none;
+      opacity: 0;
+      transform: scale(0.9);
+      transition: opacity 180ms ease, transform 180ms ease;
+      background: rgba(0,0,0,0.55);
+      color: #fff;
+      border-radius: 9999px;
+      padding: 14px 18px;
+      font-size: 20px;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      user-select: none;
+      -webkit-user-select: none;
+      will-change: opacity, transform;
+    }
+
+    .indicator.show {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    .indicator svg {
+      width: 22px;
+      height: 22px;
+      display: block;
     }
   </style>
 </head>
 <body>
   <video id="video" autoplay muted loop playsinline></video>
-  <div id="overlay"></div>
+
+  <!-- Overlay zum Klicken + visueller Hinweis -->
+  <div class="tap-layer" id="tapLayer" aria-label="Audio Umschalten">
+    <div class="indicator" id="indicator" role="status" aria-live="polite"></div>
+  </div>
 
   <script>
     const urlParams = new URLSearchParams(window.location.search);
     const src = urlParams.get("src");
     const video = document.getElementById("video");
-    const overlay = document.getElementById("overlay");
+    const tapLayer = document.getElementById("tapLayer");
+    const indicator = document.getElementById("indicator");
 
-    console.log("🎬 Init video with src:", src);
+    // Start immer muted
+    video.muted = true;
 
     // HLS.js Setup
     if (Hls.isSupported()) {
-      const hls = new Hls({ maxBufferLength: 10, maxMaxBufferLength: 30 });
+      const hls = new Hls({
+        maxBufferLength: 10,
+        maxMaxBufferLength: 30,
+      });
       hls.loadSource(src);
       hls.attachMedia(video);
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = src;
     }
 
-    // Performance: nur abspielen, wenn sichtbar
+    // Performance: Nur abspielen, wenn sichtbar
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            video.play().catch((err) => console.warn("⚠️ Autoplay blocked:", err));
+            video.play().catch(() => {});
           } else {
             video.pause();
           }
@@ -67,15 +110,48 @@
     );
     observer.observe(video);
 
-    // ✅ Tap anywhere = Toggle mute/unmute
-    overlay.addEventListener("click", () => {
-      video.muted = !video.muted;
-      if (video.muted) {
-        console.log("🔇 Muted");
-      } else {
-        video.play().catch(err => console.warn("⚠️ Unmute failed:", err));
-        console.log("🔊 Unmuted");
+    // Icons als SVGs (klarer als Emojis)
+    const iconMuted = `
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M4 9v6h4l5 5V4L8 9H4zm13.59 3l2.7-2.7-1.42-1.42L16.17 10.6l-2.7-2.7-1.42 1.42 2.7 2.7-2.7 2.7 1.42 1.42 2.7-2.7 2.7 2.7 1.42-1.42L17.6 12z"/>
+      </svg>
+    `;
+    const iconUnmuted = `
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M5 9v6h4l5 5V4L9 9H5zm11.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.74 2.5-2.26 2.5-4.02zM14 3.23v2.06c2.89 1 5 3.77 5 6.71s-2.11 5.71-5 6.71v2.06c4.01-1.1 7-4.89 7-8.77s-2.99-7.67-7-8.77z"/>
+      </svg>
+    `;
+
+    let indicatorTimer = null;
+
+    function showIndicator(isMuted) {
+      if (indicatorTimer) {
+        clearTimeout(indicatorTimer);
+        indicatorTimer = null;
       }
+      indicator.innerHTML = isMuted ? (iconMuted + '<span>Ton aus</span>') : (iconUnmuted + '<span>Ton an</span>');
+      indicator.classList.add('show');
+      indicatorTimer = setTimeout(() => {
+        indicator.classList.remove('show');
+      }, 900);
+    }
+
+    // Tap zum Umschalten
+    tapLayer.addEventListener('click', () => {
+      // User-Gesture: erlaubt Unmute/Play auf iOS
+      video.muted = !video.muted;
+
+      // Versuche sicherzustellen, dass bei Unmute auch abgespielt wird
+      if (!video.muted && video.paused) {
+        video.play().catch(() => {});
+      }
+
+      showIndicator(video.muted);
+    }, { passive: true });
+
+    // Beim Laden einmal den Startzustand anzeigen (optional)
+    document.addEventListener('DOMContentLoaded', () => {
+      showIndicator(true);
     });
   </script>
 </body>
