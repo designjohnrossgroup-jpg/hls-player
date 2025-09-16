@@ -16,8 +16,8 @@
     video {
       width: 100%;
       height: 100%;
-      object-fit: cover; /* Insta-/TikTok-Style */
-      pointer-events: none; /* ✅ Swipen funktioniert */
+      object-fit: cover;
+      pointer-events: none; /* ✅ Scroll bleibt möglich */
       display: block;
     }
     #overlay {
@@ -68,32 +68,15 @@
     );
     observer.observe(video);
 
-    // ✅ Erstes Tap-Overlay
+    // ✅ Overlay-Click = Mute/Unmute Toggle
     overlay.addEventListener("click", () => {
-      video.muted = false;
-      video.play().then(() => {
-        console.log("🔓 First user interaction → audio unlocked");
-        overlay.remove(); // Overlay entfernen
-        window.parent.postMessage("unlocked", "*"); // Flutter informieren
-      }).catch(err => console.warn("⚠️ Unlock blocked:", err));
-    });
-
-    // ✅ Steuerung über PostMessage (nach Unlock global steuerbar)
-    window.addEventListener("message", (event) => {
-      const msg = event.data;
-      console.log("📩 Command received:", msg);
-
-      if (msg === "mute") {
-        video.muted = true;
-        console.log("🔇 mute()");
-      }
-
-      if (msg === "unmute") {
+      if (video.muted) {
         video.muted = false;
-        video.play().catch(err => {
-          console.warn("⚠️ Unmute blocked:", err);
-        });
-        console.log("🔊 unmute()");
+        video.play().catch(err => console.warn("⚠️ Unmute failed:", err));
+        console.log("🔊 Unmuted");
+      } else {
+        video.muted = true;
+        console.log("🔇 Muted");
       }
     });
   </script>
