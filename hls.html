@@ -42,7 +42,7 @@
       video.src = src;
     }
 
-    // Performance: Nur abspielen, wenn sichtbar
+    // Performance: nur abspielen, wenn sichtbar
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -66,13 +66,16 @@
         video.muted = true;
         console.log("🔇 mute()");
       }
+
       if (msg === "unmute") {
         try {
           video.muted = false;
-          video.play().catch(err => {
-            console.warn("⚠️ Unmute blocked by browser:", err);
-          });
-          console.log("🔊 unmute()");
+          const playPromise = video.play();
+          if (playPromise !== undefined) {
+            playPromise
+              .then(() => console.log("🔊 unmute() successful"))
+              .catch((err) => console.warn("⚠️ Unmute blocked:", err));
+          }
         } catch (e) {
           console.error("❌ Unmute error:", e);
         }
