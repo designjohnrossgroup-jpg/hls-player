@@ -18,22 +18,22 @@
       width: 100%;
       height: 100%;
       object-fit: cover; /* Insta-/TikTok-Style */
-      pointer-events: none; /* Blockiert keine Swipes */
+      pointer-events: none; /* blockiert keine Swipes */
       display: block;
     }
 
-    /* Vollflächige Tap-Schicht über dem Video */
-    .tap-layer {
+    /* Overlay nimmt Taps an, lässt vertikales Scrollen durch */
+    .gesture-layer {
       position: fixed;
       inset: 0;
       z-index: 10;
+      touch-action: pan-y; /* wichtig: vertikales Scrollen geht an das umgebende PageView */
+      background: transparent;
       display: flex;
       align-items: center;
       justify-content: center;
-      touch-action: manipulation;
     }
 
-    /* Hinweis-Badge (Icon) */
     .indicator {
       pointer-events: none;
       opacity: 0;
@@ -52,24 +52,14 @@
       -webkit-user-select: none;
       will-change: opacity, transform;
     }
-
-    .indicator.show {
-      opacity: 1;
-      transform: scale(1);
-    }
-
-    .indicator svg {
-      width: 22px;
-      height: 22px;
-      display: block;
-    }
+    .indicator.show { opacity: 1; transform: scale(1); }
+    .indicator svg { width: 22px; height: 22px; display: block; }
   </style>
 </head>
 <body>
-  <video id="video" autoplay muted loop playsinline></video>
+  <video id="video" autoplay muted loop playsinline webkit-playsinline></video>
 
-  <!-- Overlay zum Klicken + visueller Hinweis -->
-  <div class="tap-layer" id="tapLayer" aria-label="Audio Umschalten">
+  <div class="gesture-layer" id="gestureLayer" aria-label="Audio umschalten">
     <div class="indicator" id="indicator" role="status" aria-live="polite"></div>
   </div>
 
@@ -77,25 +67,23 @@
     const urlParams = new URLSearchParams(window.location.search);
     const src = urlParams.get("src");
     const video = document.getElementById("video");
-    const tapLayer = document.getElementById("tapLayer");
+    const layer = document.getElementById("gestureLayer");
     const indicator = document.getElementById("indicator");
 
-    // Start immer muted
+    // Start muted
     video.muted = true;
+    video.defaultMuted = true;
 
     // HLS.js Setup
     if (Hls.isSupported()) {
-      const hls = new Hls({
-        maxBufferLength: 10,
-        maxMaxBufferLength: 30,
-      });
+      const hls = new Hls({ maxBufferLength: 10, maxMaxBufferLength: 30 });
       hls.loadSource(src);
       hls.attachMedia(video);
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = src;
     }
 
-    // Performance: Nur abspielen, wenn sichtbar
+    // Sichtbarkeitssteuerung
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -110,7 +98,7 @@
     );
     observer.observe(video);
 
-    // Icons als SVGs (klarer als Emojis)
+    // Icons
     const iconMuted = `
       <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="M4 9v6h4l5 5V4L8 9H4zm13.59 3l2.7-2.7-1.42-1.42L16.17 10.6l-2.7-2.7-1.42 1.42 2.7 2.7-2.7 2.7 1.42 1.42 2.7-2.7 2.7 2.7 1.42-1.42L17.6 12z"/>
@@ -123,36 +111,55 @@
     `;
 
     let indicatorTimer = null;
-
     function showIndicator(isMuted) {
-      if (indicatorTimer) {
-        clearTimeout(indicatorTimer);
-        indicatorTimer = null;
-      }
+      if (indicatorTimer) { clearTimeout(indicatorTimer); indicatorTimer = null; }
       indicator.innerHTML = isMuted ? (iconMuted + '<span>Ton aus</span>') : (iconUnmuted + '<span>Ton an</span>');
       indicator.classList.add('show');
-      indicatorTimer = setTimeout(() => {
-        indicator.classList.remove('show');
-      }, 900);
+      indicatorTimer = setTimeout(() => indicator.classList.remove('show'), 900);
     }
 
-    // Tap zum Umschalten
-    tapLayer.addEventListener('click', () => {
-      // User-Gesture: erlaubt Unmute/Play auf iOS
-      video.muted = !video.muted;
+    // Tap-Erkennung: kurze Berührung mit wenig Bewegung -> Toggle
+    let startX = 0, startY = 0, startT = 0;
+    const TAP_MAX_MOVEMENT = 12;   // px
+    const TAP_MAX_DURATION = 250;  // ms
 
-      // Versuche sicherzustellen, dass bei Unmute auch abgespielt wird
-      if (!video.muted && video.paused) {
-        video.play().catch(() => {});
-      }
-
-      showIndicator(video.muted);
+    layer.addEventListener('pointerdown', (ev) => {
+      startX = ev.clientX;
+      startY = ev.clientY;
+      startT = performance.now();
     }, { passive: true });
 
-    // Beim Laden einmal den Startzustand anzeigen (optional)
-    document.addEventListener('DOMContentLoaded', () => {
-      showIndicator(true);
-    });
+    layer.addEventListener('pointerup', async (ev) => {
+      const dx = Math.abs(ev.clientX - startX);
+      const dy = Math.abs(ev.clientY - startY);
+      const dt = performance.now() - startT;
+
+      // Wenn deutliche Bewegung oder lange Dauer -> als Scroll/Swipe behandeln
+      if (dx > TAP_MAX_MOVEMENT || dy > TAP_MAX_MOVEMENT || dt > TAP_MAX_DURATION) return;
+
+      // Echte User-Geste: Unmute sicher erzwingen (iOS)
+      try {
+        video.removeAttribute('muted');
+        video.defaultMuted = false;
+        video.volume = 1.0;
+        video.muted = !video.muted;
+
+        // Bei Unmute sicherstellen, dass es läuft
+        if (!video.muted) {
+          await video.play();
+        }
+
+        showIndicator(video.muted);
+      } catch (e) {
+        // Falls play() scheitert, state wieder zurück
+        video.muted = true;
+        video.defaultMuted = true;
+        showIndicator(true);
+      }
+    }, { passive: true });
+
+    // Optional: Startzustand anzeigen
+    document.addEventListener('DOMContentLoaded', () => showIndicator(true));
   </script>
 </body>
 </html>
