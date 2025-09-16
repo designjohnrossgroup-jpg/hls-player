@@ -13,7 +13,6 @@
       height: 100%;
       background: black;
       overflow: hidden;
-      -webkit-touch-callout: none;
       -webkit-user-select: none;
       user-select: none;
     }
@@ -21,17 +20,16 @@
     video {
       width: 100%;
       height: 100%;
-      object-fit: cover; /* Insta-/TikTok-Style */
-      pointer-events: none; /* blockiert keine Swipes */
+      object-fit: cover;
+      pointer-events: none; /* Swipes nicht blockieren */
       display: block;
     }
 
-    /* Overlay nimmt Taps an, lässt vertikales Scrollen durch */
     .gesture-layer {
       position: fixed;
       inset: 0;
       z-index: 10;
-      touch-action: pan-y; /* entscheidend: vertikale Swipes gehen ans PageView */
+      touch-action: pan-y; /* vertikales Scrollen zulassen */
       background: transparent;
       display: flex;
       align-items: center;
@@ -72,11 +70,9 @@
     const layer = document.getElementById("gestureLayer");
     const indicator = document.getElementById("indicator");
 
-    // Start muted
     video.muted = true;
     video.defaultMuted = true;
 
-    // HLS.js Setup
     if (Hls.isSupported()) {
       const hls = new Hls({ maxBufferLength: 10, maxMaxBufferLength: 30 });
       hls.loadSource(src);
@@ -85,7 +81,6 @@
       video.src = src;
     }
 
-    // Sichtbarkeitssteuerung
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -100,7 +95,6 @@
     );
     observer.observe(video);
 
-    // Icons
     const iconMuted = `
       <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="M4 9v6h4l5 5V4L8 9H4zm13.59 3l2.7-2.7-1.42-1.42L16.17 10.6l-2.7-2.7-1.42 1.42 2.7 2.7-2.7 2.7 1.42 1.42 2.7-2.7 2.7 2.7 1.42-1.42L17.6 12z"/>
@@ -120,10 +114,10 @@
       indicatorTimer = setTimeout(() => indicator.classList.remove('show'), 900);
     }
 
-    // Tap-Erkennung: kurze Berührung mit wenig Bewegung -> Toggle
+    // Tap-Only: kleine Bewegung/kurze Dauer
     let startX = 0, startY = 0, startT = 0;
-    const TAP_MAX_MOVEMENT = 12;   // px
-    const TAP_MAX_DURATION = 250;  // ms
+    const TAP_MAX_MOVEMENT = 12;
+    const TAP_MAX_DURATION = 250;
 
     layer.addEventListener('pointerdown', (ev) => {
       startX = ev.clientX;
@@ -135,12 +129,9 @@
       const dx = Math.abs(ev.clientX - startX);
       const dy = Math.abs(ev.clientY - startY);
       const dt = performance.now() - startT;
-
-      // Deutliche Bewegung/Lange Dauer -> Swipe/Scroll an Parent übergeben
       if (dx > TAP_MAX_MOVEMENT || dy > TAP_MAX_MOVEMENT || dt > TAP_MAX_DURATION) return;
 
       try {
-        // Unmute/Mute Toggle innerhalb echter User-Geste
         if (video.muted || video.volume === 0) {
           video.removeAttribute('muted');
           video.defaultMuted = false;
@@ -154,18 +145,12 @@
           showIndicator(true);
         }
       } catch (e) {
-        // Falls play() fehlschlägt, wieder auf muted
-        video.muted = true;
-        video.defaultMuted = true;
         showIndicator(true);
       }
     }, { passive: true });
 
-    // Optional: PostMessage-Steuerung (z.B. von Flutter)
-    // - "mute" wirkt immer
-    // - "unmute" klappt zuverlässig, NACHDEM der Nutzer mindestens einmal getappt hat (Audio entsperrt)
+    // Optional: externe Steuerung
     window.addEventListener('message', async (event) => {
-      // Bei Bedarf: Origin prüfen, z.B. if (event.origin !== 'https://deine-domain') return;
       const data = String(event.data || '').toLowerCase().trim();
       if (data === 'mute') {
         video.muted = true;
@@ -180,13 +165,11 @@
           await video.play();
           showIndicator(false);
         } catch (e) {
-          // Wenn blockiert: Hinweis kurz zeigen (Tippen nötig)
           showIndicator(true);
         }
       }
     });
 
-    // Startzustand anzeigen
     document.addEventListener('DOMContentLoaded', () => showIndicator(true));
   </script>
 </body>
