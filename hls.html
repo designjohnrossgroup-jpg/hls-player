@@ -17,30 +17,18 @@
       width: 100%;
       height: 100%;
       object-fit: cover; /* Insta-/TikTok-Style */
-      pointer-events: none; /* blockiert keine Swipes */
+      pointer-events: none; /* ✅ Swipen funktioniert */
       display: block;
-    }
-    #overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      z-index: 10;
-      background: transparent;
-      cursor: pointer;
     }
   </style>
 </head>
 <body>
   <video id="video" autoplay muted loop playsinline></video>
-  <div id="overlay"></div> <!-- ✅ Erstklick-Overlay -->
 
   <script>
     const urlParams = new URLSearchParams(window.location.search);
     const src = urlParams.get("src");
     const video = document.getElementById("video");
-    const overlay = document.getElementById("overlay");
 
     console.log("🎬 Init video with src:", src);
 
@@ -68,21 +56,22 @@
     );
     observer.observe(video);
 
-    // ✅ Erstes Tap → Audio freischalten
-    overlay.addEventListener("click", () => {
-      video.muted = false;
-      video.play().then(() => {
-        console.log("🔓 First user interaction → audio unlocked");
-        overlay.remove(); // Overlay wegnehmen nach erstem Tap
-      }).catch(err => {
-        console.warn("⚠️ Unlock blocked:", err);
-      });
-    });
-
-    // ✅ Steuerung über PostMessage (Mute/Unmute nach Unlock)
+    // ✅ Steuerung über PostMessage
     window.addEventListener("message", (event) => {
       const msg = event.data;
       console.log("📩 Command received:", msg);
+
+      if (msg === "unlock") {
+        // Erstes echtes Freischalten von Audio
+        try {
+          video.muted = false;
+          video.play().then(() => {
+            console.log("🔓 Audio unlocked via FlutterFlow button");
+          }).catch(err => console.warn("⚠️ Unlock blocked:", err));
+        } catch (e) {
+          console.error("❌ Unlock error:", e);
+        }
+      }
 
       if (msg === "mute") {
         video.muted = true;
@@ -90,10 +79,6 @@
       }
 
       if (msg === "unmute") {
-        if (overlay) {
-          console.warn("⚠️ Unmute blocked – overlay noch aktiv (kein Erstklick).");
-          return;
-        }
         try {
           video.muted = false;
           video.play().catch(err => {
