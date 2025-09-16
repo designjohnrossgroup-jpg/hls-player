@@ -56,13 +56,12 @@
     );
     observer.observe(video);
 
-    // ✅ Steuerung über PostMessage
+    // Steuerung über PostMessage
     window.addEventListener("message", (event) => {
       const msg = event.data;
       console.log("📩 Command received:", msg);
 
       if (msg === "unlock") {
-        // Erstes echtes Freischalten von Audio
         try {
           video.muted = false;
           video.play().then(() => {
