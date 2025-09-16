@@ -16,9 +16,8 @@
     video {
       width: 100%;
       height: 100%;
-      object-fit: cover;
-      pointer-events: none; /* ✅ Scroll bleibt möglich */
-      display: block;
+      object-fit: cover; /* TikTok/Insta Style */
+      pointer-events: none; /* ✅ Swipen bleibt möglich */
     }
     #overlay {
       position: absolute;
@@ -68,15 +67,14 @@
     );
     observer.observe(video);
 
-    // ✅ Overlay-Click = Mute/Unmute Toggle
+    // ✅ Tap anywhere = Toggle mute/unmute
     overlay.addEventListener("click", () => {
+      video.muted = !video.muted;
       if (video.muted) {
-        video.muted = false;
+        console.log("🔇 Muted");
+      } else {
         video.play().catch(err => console.warn("⚠️ Unmute failed:", err));
         console.log("🔊 Unmuted");
-      } else {
-        video.muted = true;
-        console.log("🔇 Muted");
       }
     });
   </script>
